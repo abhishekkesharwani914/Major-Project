@@ -8,7 +8,8 @@ const methodOverride = require("method-override");
 const ejsMate = require("ejs-mate");
 const wrapAsync = require("./utils/wrapAsync.js");
 const ExpressError = require("./utils/ExpressErrors.js")
-const {listingSchema} = require("./schema.js");
+const {listingSchema, reviewSchema} = require("./schema.js");
+const Review = require("./Models/review.js");
 
 
 app.set("view eingine", "ejs");
@@ -36,7 +37,7 @@ app.get("/", (req,res) => {
 });
 
 const validateListing = (req, res, next) => {
-    let error = listingSchema.validate(req.body);
+    let {error} = listingSchema.validate(req.body);
     
     if(error) {
         let errMsg = error.details.map((el) => el.message).join(",");
@@ -44,7 +45,19 @@ const validateListing = (req, res, next) => {
     } else{
         next();
     }
-}
+};
+
+//Validating Review
+const validateReview = (req, res, next) => {
+    let {error} = reviewSchema.validate(req.body);
+    
+    if(error) {
+        let errMsg = error.details.map((el) => el.message).join(",");
+        throw new ExpressError(400, errMsg);
+    } else{
+        next();
+    }
+};
 
 // app.get("/testlisting", async (req, res) => {
 //     let sampleListing = new listing({
@@ -75,7 +88,7 @@ app.get("/listings/new", (req, res) => {
 // Show Route
 app.get("/listings/:id",wrapAsync( async (req, res) => {
     let {id} = req.params;
-    const Listing = await listing.findById(id);
+    const Listing = await listing.findById(id).populate("reviews");
     res.render("listings/show.ejs", {Listing});
 }));
 
@@ -108,9 +121,36 @@ app.delete("/listings/:id",wrapAsync( async (req, res) => {
     res.redirect("/listings");
 }));
 
+//Reviews
+//Post Review Route
+app.post("/listings/:id/reviews",validateReview,wrapAsync(async(req, res) => {
+    let Listing = await listing.findById(req.params.id);
+    let newReview = new Review(req.body.review);
+
+    Listing.reviews.push(newReview);
+
+    await newReview.save();
+    await Listing.save();
+
+    console.log("new review saved");
+    res.redirect(`/listings/${Listing._id}`);
+}));
+
+//Delete Review Route
+app.delete("/listings/:id/reviews/:reviewId",wrapAsync(async(req, res) =>{
+    let {id, reviewId} = req.params;
+    await listing.findByIdAndUpdate(id, {$pull: {reviews: reviewId}});// here id is pass from which we want to delete review, pull = delete from id, reviews is review array iside that id and reviewId is Id of review which we want to delete review
+    await Review.findByIdAndDelete(reviewId);
+    res.redirect(`/listings/${id}`);
+
+
+}));
+
 app.all("*", (req, res, next) => {
     next(new ExpressError(404,"Page not found"));
-})
+});
+
+
 
 // Error handler
 app.use((err, req, res, next) => {
