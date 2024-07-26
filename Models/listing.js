@@ -27,6 +27,7 @@ const listingSchema = new Schema({
 
 });
 
+//it is a post mongoose middleware to delete all review which is relate to that particual listing
 listingSchema.post("findOneAndDelete", async(Listing) => {
     if (Listing) {
         await Review.deleteMany({_id: {$in : Listing.reviews}})
