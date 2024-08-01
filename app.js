@@ -9,9 +9,13 @@ const ExpressError = require("./utils/ExpressErrors.js");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
 const flash = require("connect-flash");
+const passport = require("passport");
+const LocalStrategy = require("passport-local")
+const User = require("./Models/user.js")
 
-const listings = require("./routes/listing.js");
-const reviews = require("./routes/review.js");
+const listingsRouter = require("./routes/listing.js");
+const reviewsRouter = require("./routes/review.js");
+const userRouter = require("./routes/user.js");
 
 app.set("view eingine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -48,16 +52,34 @@ app.get("/", (req,res) => {
 });
 
 app.use(session(sessionOptions));
-app.use(flash());
+app.use(flash());  
+
+app.use(passport.initialize());
+app.use(passport.session());
+passport.use(new LocalStrategy(User.authenticate)); // passport-local Mongoose package use local strategy to user authenticate which Generates a function that is used in Passport's LocalStrategy
+
+passport.serializeUser(User.serializeUser());// passport-local Mongoose package use serializeUser which Generates a function that is used by Passport to serialize users into the session
+passport.deserializeUser(User.deserializeUser());// passport-local Mongoose package use deserializer which Generates a function that is used by Passport to deserialize users into the session
 
 app.use((req, res, next) => {
     res.locals.success = req.flash("success");
-    es.locals.error = req.flash("error");
+    res.locals.error = req.flash("error"); 
+    res.locals.currUser = req.user;
     next();
 })
 
-app.use("/listings", listings);
-app.use("/listings/:id/reviews", reviews);
+app.get("/demouser", async (req, res) =>{
+    let fakeUser = new User({
+        email: "abc@gmail.com",
+        username: "abhishekkesharwani914"
+    });
+    let registeredUser = await User.register(fakeUser, "Helloworld");
+    res.send(registeredUser);
+})
+
+app.use("/listings", listingsRouter);
+app.use("/listings/:id/reviews", reviewsRouter);
+app.use(userRouter);
 
 app.all("*", (req, res, next) => {
     next(new ExpressError(404,"Page not found"));
